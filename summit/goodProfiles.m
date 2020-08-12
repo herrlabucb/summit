@@ -107,7 +107,6 @@ end
 
 % set number of rows/columns of subplots to display in each figure window
 n=5;
-num_subplots = n * n;
 
 % Calculate the number of plots that need to be displayed and the number of
 % n x n panels that are required
@@ -161,7 +160,7 @@ for i=1:number_subplots
             % Plot. The buttondownfucn Toggles the subplot selection.
             % Function at the bottom of the script
             plot(xval,yval,'LineWidth',2,'Tag', sprintf('%d', dev_number),...
-                'buttondownfcn', @clickTest);   
+                'buttondownfcn', @toggleSubplot);   
                     
          
             hold on
@@ -188,8 +187,8 @@ for i=1:number_subplots
     
     zoom_off = 0;
     btn = uicontrol('Style', 'pushbutton', 'String', 'Zoom Off',...
-    'Position', [250 15 50 30],...
-    'Callback',@zoomOff);
+        'Position', [250 15 50 30],...
+        'Callback',@zoomOff);
 
        hManager = uigetmodemanager(h);
             try
@@ -199,7 +198,7 @@ for i=1:number_subplots
             end
             set(h, 'WindowKeyPressFcn', []);
             set(h, 'buttondownfcn', []);
-            set(h, 'buttondownfcn', @clickTest);
+            set(h, 'buttondownfcn', @toggleSubplot);
             set(h, 'KeyPressFcn', @myKeyPressCallback);
               
  
@@ -265,7 +264,7 @@ assignin('caller', 'next', next);
 end
 
 
-function clickTest(line_handle, event)
+function toggleSubplot(line_handle, event)
   % This function handles toggling the subplot state when it is clicked
 
   % Get the vector of subplot states from the calling workspace.
