@@ -199,8 +199,6 @@ for i=1:number_subplots
             set(h, 'WindowKeyPressFcn', []);
             set(h, 'buttondownfcn', []);
             set(h, 'buttondownfcn', @toggleSubplot);
-            set(h, 'KeyPressFcn', @myKeyPressCallback);
-              
  
      % Wait for the user to be done selecting lanes before moving to the
     % next panel
