@@ -132,7 +132,11 @@ for i=1:number_subplots
     
     h = figure;
     if i==1
+      if number_subplots == 1
+        devices_subplot = 1:length(good_r2)
+      else
         devices_subplot = (1:(n*n));
+      end
         
     elseif i*n*n <= plots_display
         devices_subplot=((i*n*n)-(n*n)+1):((i*n*n));
