@@ -311,104 +311,102 @@ for i = 1:num_good_devices
     
     for peak = 1:num_peaks
        
-       upper_lim = upper_mat(((3*peak)-2):3*peak); 
-       lower_lim = lower_mat(((3*peak)-2):3*peak);
-       
-       x_min = lower_lim(2);
-       x_max = upper_lim(2);
-       
-       fit_options.Lower = lower_lim;
-       fit_options.Upper = upper_lim;
-    
-       % Determine index of x_min and x_max for selection of x and y values in
-       %the region of the peak
-       left_diff=abs(x-x_min);
-       left_data=find(left_diff==min(left_diff));
-    
-       right_diff=abs(x-x_max);
-       right_data=find(right_diff==min(right_diff));
-    
-       % Get the x and y values in the peak region
-       x_fit=x(left_data:right_data);
+        upper_lim = upper_mat(((3*peak)-2):3*peak); 
+        lower_lim = lower_mat(((3*peak)-2):3*peak);
+
+        x_min = lower_lim(2);
+        x_max = upper_lim(2);
+
+        fit_options.Lower = lower_lim;
+        fit_options.Upper = upper_lim;
+
+        % Determine index of x_min and x_max for selection of x and y values in
+        %the region of the peak
+        left_diff=abs(x-x_min);
+        left_data=find(left_diff==min(left_diff));
+
+        right_diff=abs(x-x_max);
+        right_data=find(right_diff==min(right_diff));
+
+        % Get the x and y values in the peak region
+        x_fit=x(left_data:right_data);
         y_fit=y(left_data:right_data);
-    
-       % Fit the peaks
-    
-    [fit_object, gof2] = fit(x_fit, y_fit, fit_type, fit_options);
-    
-    % Get the coefficients
-    fit_coeffs = coeffvalues(fit_object);
-    ci = confint(fit_object, 0.95);
-        
-    % Get peak center and width for re-fitting of peak
-        center=fit_coeffs(2);
-        sigma=fit_coeffs(3);
-        width=sigma/sqrt(2);
-        
-       % Determine index of x_min and x_max for selection of x and y values in
-       %closer to the peak
-       left_diff=abs(x_fit-(center-2*width));
-       left_data=find(left_diff==min(left_diff));
-    
-       right_diff=abs(x_fit-(center+2*width));
-       right_data=find(right_diff==min(right_diff));
-    
-       % Get the x and y values in the peak region
-       x_fit2=x_fit(left_data:right_data);
-        y_fit2=y_fit(left_data:right_data);
-    
-       if length(x_fit2) > 3
-        % Fit the peaks again
-         [fit_object2, gof2] = fit(x_fit2, y_fit2, fit_type, fit_options); 
-       
+
+        % Fit the peaks
+        [fit_object, gof2] = fit(x_fit, y_fit, fit_type, fit_options);
+
         % Get the coefficients
-        fit_coeffs = coeffvalues(fit_object2);
-        ci = confint(fit_object2, 0.95);
-       end
-       % Get peak center and width for AUC calculation
+        fit_coeffs = coeffvalues(fit_object);
+        ci = confint(fit_object, 0.95);
+
+        % Get peak center and width for re-fitting of peak
         center=fit_coeffs(2);
         sigma=fit_coeffs(3);
         width=sigma/sqrt(2);
-        
-        %determine location of +/- 2 peak widths from the peak center
+
+        % Determine index of x_min and x_max for selection of x and y values in
+        %closer to the peak
+        left_diff=abs(x_fit-(center-2*width));
+        left_data=find(left_diff==min(left_diff));
+
+        right_diff=abs(x_fit-(center+2*width));
+        right_data=find(right_diff==min(right_diff));
+
+        % Get the x and y values in the peak region
+        x_fit2=x_fit(left_data:right_data);
+        y_fit2=y_fit(left_data:right_data);
+
+        if length(x_fit2) > 3
+            % Fit the peaks again
+             [fit_object2, gof2] = fit(x_fit2, y_fit2, fit_type, fit_options); 
+
+            % Get the coefficients
+            fit_coeffs = coeffvalues(fit_object2);
+            ci = confint(fit_object2, 0.95);
+        end
+        % Get peak center and width for AUC calculation
+        center=fit_coeffs(2);
+        sigma=fit_coeffs(3);
+        width=sigma/sqrt(2);
+
+        % determine location of +/- 2 peak widths from the peak center
         auc_left_bound=center-2*width;
         auc_right_bound=center+2*width;
-        
+
         % Determine index of auc_left_bound and auc_right_bound for selection of x and y values in
-        %the region of the peak
+        % the region of the peak
         left_diff_auc=abs(x-auc_left_bound);
         left_data_auc=find(left_diff_auc==min(left_diff_auc));
-    
+
         right_diff_auc=abs(x-auc_right_bound);
         right_data_auc=find(right_diff_auc==min(right_diff_auc));
-        
+
         % Make sure the left bound is within the array
         if (left_data_auc < 1)
-           
+
            left_data_auc = 1; 
-            
+
         end
-        
-        
+
+
         % Check to make sure the AUC bounds are within the bounds of the
         % array
         if (right_data_auc > length(y))
-            
+
             right_data_auc = length(y);
-            
-            
+
         end
-    
+
         %Sum data within the peak bounds
         peak_region_intensities=y(left_data_auc:right_data_auc);
         AUC(peak,1,i)=sum(peak_region_intensities);
-    
+
         data_struct.fit_coefficients(peak, :, i) =...
             fit_coeffs;
         data_struct.ci((peak*2-1):(peak*2), :, i) =...
             ci;
         data_struct.AUC(peak,1,i)=AUC(peak,1,i);
-        
+
         %get the R^2 values
         all_r2(peak,1,i) = gof2.rsquare;
     end

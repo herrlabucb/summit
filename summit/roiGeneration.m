@@ -30,10 +30,10 @@ function [struct] = roiGeneration(filename,horzspacing,vertspacing,struct)
 % "array_bounds" if the same image has already been analyzed by
 % roiGeneration. The same ROIs will automatically be generated.
 %% versions
-% 0.1-Created April, 2016
+% 0.1 (4.1.16): Created
 % 0.2 (5.15.16): Updated to apply same transform for ROI generation if user
-% inputs a struct with the fields "angle" and "rotate".
-%0.3 (5.20.16): Added "rows" and "wells per row" fields to structure.
+%                inputs a struct with the fields "angle" and "rotate".
+% 0.3 (5.20.16): Added "rows" and "wells per row" fields to structure.
 
 %% Check input arguments
 switch nargin
