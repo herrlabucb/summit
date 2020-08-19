@@ -1,4 +1,4 @@
-function [struct] = intProf(struct,backgroundwidth)
+function [struct] = intProf(struct, backgroundwidth, bsub_method)
 % Generate intensity profiles from the ROI stacks in the output of roiGeneration
 % and perform background subtraction on the profiles
 % 
@@ -23,14 +23,28 @@ function [struct] = intProf(struct,backgroundwidth)
 %   struct.int_prof: a 3D matrix containing an array of the intensity 
 %                    profiles [x, intensity value] indexed by the 
 %                    third dimension
+%   struct.bsub_method: the background subtraction method that was used.
+%                       See the bsub_method input argument for details.
 %                    
 % 
 % Inputs
 %   Struct [structure]: The data structure from roiGeneration containing the
 %                       ROIs for each lane
-%   backgroundWidth [int]: width of the background region for axial
+%   backgroundWidth [int]: width of the background region for 
 %                          background subtraction (in pixels)
-%                          
+%   bsub_method [str]: The background subtraction method. If 'axial' is
+%                      used, the background for each row along the
+%                      separation axis is calculated from the background
+%                      region in the same row. If 'mean' is provided,
+%                      the average of all pixels in the background region for
+%                      each lane is subtracted from the intensity profile.
+%                      The default value is axial.
+%
+
+% If no value for bsub_method was provided, use axial as the default
+if nargin == 2
+   bsub_method = 'axial'; 
+end
 
 % Load the matrix of ROIs
 mat=struct.rois;
@@ -78,8 +92,18 @@ figure
     % x-coordinate along the lane
     mean_background = (left_background_int + right_background_int) / 2;
     
-    % Subtract the background vector from the intensity profile
-    bsub_int = avg_int - mean_background;
+    if strcmp(bsub_method, 'axial')
+        % Subtract the background vector from the intensity profile
+        bsub_int = avg_int - mean_background;
+        
+    elseif strcmp(bsub_method, 'mean')
+        % Use the average of the full background region as the background
+        avg_mean_background = mean(mean_background);
+        bsub_int = avg_int - avg_mean_background;
+    else
+        error('Unrecogized background subtraction method bsub_method should be axial or mean.');
+    end
+    
     
     % Create a matrix with one column containing the x-coordinates and a
     % second column containing the background subtracted intensity profile
@@ -96,6 +120,7 @@ figure
 
 % Save the intensity profiles to the data structure
 struct.int_prof = int_profiles;
+struct.bsub_method = bsub_method;
 
 
 
