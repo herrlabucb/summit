@@ -1,7 +1,7 @@
 % Generate the ROIs
 horzspacing = 50;
 vertspacing = 200;
-[test_results] = roiGeneration('test_im.tif',horzspacing, vertspacing);
+[test_results] = roiGeneration('gfp_test_data.tif',horzspacing, vertspacing);
 pause
 
 % Generate intensity profiles for each ROI
