@@ -172,8 +172,16 @@ for i=1:number_subplots
                 coeff = device_coeffs(k,:);
                 a = coeff(1);
                 b = coeff(2);
-                c = coeff(3); 
-                yGauss = a*exp(-((xval-b)/c).^2);
+                c = coeff(3);
+                if isfield(data_struct, 'fit_function')
+                    if strcmp(data_struct.fit_function, 'skewed_gaussian')
+                        yGauss = skewedGaussian(xval, a, b, c, coeff(4));
+                    else
+                        yGauss = a*exp(-((xval-b)/c).^2);
+                    end
+                else
+                    yGauss = a*exp(-((xval-b)/c).^2);
+                end
                 plot(xval, yGauss,'r','LineWidth',2);
                 hold on
             end

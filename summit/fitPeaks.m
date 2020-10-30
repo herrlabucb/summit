@@ -65,7 +65,8 @@
 %             
 %               
 %
-function data_struct = fitPeaks(data_struct, num_peaks, snr_threshold)
+function data_struct = fitPeaks(data_struct, num_peaks, snr_threshold,...
+    fit_function)
 %% Check input arguments
 switch nargin
     
@@ -73,6 +74,9 @@ switch nargin
     case 1
         
         num_peaks = 1;
+        
+        % the default fit function is a gaussian
+        fit_function = 'gaussian';
         
     % If provided, ensure the number of peaks is valid
     case 2
@@ -87,9 +91,23 @@ switch nargin
         %If only 2 input arguments provided, user does not want to run the
         %SNR threshold
         apply_snr_threshold=0;
+        
+        % the default fit function is a gaussian
+        fit_function = 'gaussian';
     case 3
         apply_snr_threshold=1;
-        %
+        
+        % the default fit function is a gaussian
+        fit_function = 'gaussian';
+        
+    case 4
+        % If the user passes an SNR threshold of 0, this means they don't
+        % want to threshold by SNR.
+        if snr_threshold == 0
+           apply_snr_threshold = 0;
+        else
+            apply_snr_threshold = 1;
+        end
     otherwise
         
         error('Invalid number of input arguments');
@@ -99,6 +117,7 @@ switch nargin
     
 end
 
+data_struct.fit_function = fit_function;
 
 %% Get the peaks
 
@@ -248,8 +267,15 @@ data_struct.fit_bounds = peak_bounds;
 
 % Create the fit options object with the specified number of peaks
 
-fit_type = 'gauss1';
-         
+% Set the fit type. We could also 
+if strcmp(fit_function, 'gaussian')
+    fit_type = 'gauss1';
+elseif strcmp(fit_function, 'skewed_gaussian')
+    fit_type = fittype(@(amplitude, mu_x, sigma, alpha, x)...
+        amplitude*exp(-((x-mu_x).^2)/(2*sigma .^2))...
+        .* normcdf(alpha * (x-mu_x)), 'independent', {'x'});
+end
+
 fit_options = fitoptions(fit_type);  
 
 % Assign the locations to the fit options object
@@ -274,10 +300,22 @@ for peak = 1:num_peaks
     a_min = 0;
     a_max = y_lim(2);
     
+    % skewed gaussian needs constraints on gaussian
+    if strcmp(fit_function, 'skewed_gaussian')
+        alpha_min = -1;
+        alpha_max = 1;
+    end
+    
+    
     % set the upper and lower bounds. correct for difference in c and
     % sigma terms
+    if strcmp(fit_function, 'gaussian')
      lower_mat(((3*peak)-2):3*peak) = [a_min, x_min, (sigma_min * sqrt(2))];
      upper_mat(((3*peak)-2):3*peak) = [a_max, x_max, (sigma_max * sqrt(2))];
+    elseif strcmp(fit_function, 'skewed_gaussian')
+        lower_mat((((4*peak)-3)):4*peak) = [a_min, x_min, sigma_min, alpha_min];
+        upper_mat((((4*peak)-3)):4*peak) = [a_max, x_max, sigma_max, alpha_max];
+    end
 
 end
 
@@ -287,8 +325,16 @@ end
 % Preallocate the m x 3 x p matrix for the fit coefficients were m is the 
 % number of peaks per roi and p is the number of ROIs and col 1 is the 
 % amplitude, col 2 is the peak center, and col 3 is sigma
-data_struct.fit_coefficients = zeros(num_peaks, 3, length(good_indices));
-data_struct.ci = zeros(num_peaks*2, 3, length(good_indices));
+if strcmp(fit_function, 'gaussian')
+    data_struct.fit_coefficients = zeros(num_peaks, 3, length(good_indices));
+    data_struct.ci = zeros(num_peaks*2, 3, length(good_indices));
+elseif strcmp(fit_function, 'skewed_gaussian')
+    data_struct.fit_coefficients = zeros(num_peaks, 4, length(good_indices));
+    data_struct.ci = zeros(num_peaks*2, 4, length(good_indices));
+end
+
+
+
 
 % Preallocate the m x 1 matrix for the R^2 values for each fit where
 % m is the number of good devices
@@ -311,14 +357,28 @@ for i = 1:num_good_devices
     
     for peak = 1:num_peaks
        
-        upper_lim = upper_mat(((3*peak)-2):3*peak); 
-        lower_lim = lower_mat(((3*peak)-2):3*peak);
+        if strcmp(fit_function, 'gaussian')
+            upper_lim = upper_mat(((3*peak)-2):3*peak); 
+            lower_lim = lower_mat(((3*peak)-2):3*peak);
+        elseif strcmp(fit_function, 'skewed_gaussian')
+            upper_lim = upper_mat(((4*peak)-3):4*peak); 
+            lower_lim = lower_mat(((4*peak)-3):4*peak);
+        end
 
         x_min = lower_lim(2);
         x_max = upper_lim(2);
 
         fit_options.Lower = lower_lim;
         fit_options.Upper = upper_lim;
+        
+        if strcmp(fit_function, 'skewed_gaussian')
+           amp_init = upper_lim(1);
+           mu_init = (x_max + x_min) / 2;
+           sigma_init = upper_lim(3) / 4;
+           alpha_init = -0.5;
+           initial_guess = [amp_init, mu_init, sigma_init, alpha_init];
+           fit_options.StartPoint = initial_guess;
+        end
 
         % Determine index of x_min and x_max for selection of x and y values in
         %the region of the peak
