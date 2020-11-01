@@ -16,7 +16,18 @@
 %                                    with an estimated SNR greater than the
 %                                    threshold value will be curve fit. 
 %                                    Typical threshold value is 3.
-%
+%           fit_function (optional): The name of the function to be used to
+%                                    fit the peak shapes. 'gaussian' for
+%                                    a 1D gaussian function and
+%                                    'skewed_gaussian' for a skewed
+%                                    gaussian function. The default
+%                                    value is 'gaussian'.
+%           alpha_limits (optional): the upper and lower bounds of the
+%                                    alpha (skew) parameter if using a
+%                                    skewed Gaussian fit. The values should
+%                                    be provided as an array [min_val,
+%                                    max_val]. The default values are [-1,
+%                                    -0.2]
 %
 %   Outputs: 
 % Struct [structure]: A data structure containing objects (Intensity 
@@ -66,7 +77,7 @@
 %               
 %
 function data_struct = fitPeaks(data_struct, num_peaks, snr_threshold,...
-    fit_function)
+    fit_function, alpha_limits)
 %% Check input arguments
 switch nargin
     
@@ -108,6 +119,18 @@ switch nargin
         else
             apply_snr_threshold = 1;
         end
+        
+        alpha_limits = [-1, -0.3];
+        
+    case 5
+        % If the user passes an SNR threshold of 0, this means they don't
+        % want to threshold by SNR.
+        if snr_threshold == 0
+           apply_snr_threshold = 0;
+        else
+            apply_snr_threshold = 1;
+        end
+        
     otherwise
         
         error('Invalid number of input arguments');
@@ -271,9 +294,13 @@ data_struct.fit_bounds = peak_bounds;
 if strcmp(fit_function, 'gaussian')
     fit_type = 'gauss1';
 elseif strcmp(fit_function, 'skewed_gaussian')
+%     fit_type = fittype(@(amplitude, mu_x, sigma, alpha, x)...
+%         amplitude*exp(-((x-mu_x).^2)/(2*sigma .^2))...
+%         .* normcdf(alpha * (x-mu_x)), 'independent', {'x'});
     fit_type = fittype(@(amplitude, mu_x, sigma, alpha, x)...
-        amplitude*exp(-((x-mu_x).^2)/(2*sigma .^2))...
-        .* normcdf(alpha * (x-mu_x)), 'independent', {'x'});
+    skewedGaussian(x, amplitude, mu_x, sigma, alpha),...
+    'independent', {'x'});
+ 
 end
 
 fit_options = fitoptions(fit_type);  
@@ -302,8 +329,8 @@ for peak = 1:num_peaks
     
     % skewed gaussian needs constraints on gaussian
     if strcmp(fit_function, 'skewed_gaussian')
-        alpha_min = -1;
-        alpha_max = 1;
+        alpha_min = alpha_limits(1);
+        alpha_max = alpha_limits(2);
     end
     
     
@@ -372,12 +399,13 @@ for i = 1:num_good_devices
         fit_options.Upper = upper_lim;
         
         if strcmp(fit_function, 'skewed_gaussian')
-           amp_init = upper_lim(1);
+           amp_init = 0.75 * upper_lim(1);
            mu_init = (x_max + x_min) / 2;
            sigma_init = upper_lim(3) / 4;
-           alpha_init = -0.5;
+           alpha_init = (upper_lim(4) + lower_lim(4)) / 2;
            initial_guess = [amp_init, mu_init, sigma_init, alpha_init];
            fit_options.StartPoint = initial_guess;
+           fit_options.MaxIter = 1000;
         end
 
         % Determine index of x_min and x_max for selection of x and y values in
