@@ -92,7 +92,11 @@ figure
     % x-coordinate along the lane
     mean_background = (left_background_int + right_background_int) / 2;
     
-    if strcmp(bsub_method, 'axial')
+    if isa(bsub_method, 'function_handle')
+        % if a function was passed, use it to perform background
+        % subtraction
+        bsub_int = bsub_method(lane);
+    elseif strcmp(bsub_method, 'axial')
         % Subtract the background vector from the intensity profile
         bsub_int = avg_int - mean_background;
         
