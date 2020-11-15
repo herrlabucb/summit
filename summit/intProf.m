@@ -38,6 +38,13 @@ function [struct] = intProf(struct, backgroundwidth, bsub_method)
 %                      region in the same row. If 'mean' is provided,
 %                      the average of all pixels in the background region for
 %                      each lane is subtracted from the intensity profile.
+%
+%                      The user can also provide a function handle for an
+%                      arbitrary background subtraction method. The
+%                      function should take the 2D image of the lane as in
+%                      input argument and return the 1D
+%                      background-subtracted intensity profile.
+%
 %                      The default value is axial.
 %
 
