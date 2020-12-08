@@ -1,7 +1,7 @@
 %% Properties of the image
 
 % dimensions of the image in pixels
-im_width = 700;
+im_width = 2200;
 im_height = 2200;
 
 % background level in the image
@@ -21,7 +21,7 @@ n_bits = 16;
 
 % dimensions of the array
 n_rows = 10;
-n_cols = 10;
+n_cols = 40;
 
 % well size in pixels
 well_radius = 6;
@@ -43,9 +43,9 @@ amplitude_stdev = 500;
 % center and standard deviation of the peak in the axis in the direction
 % of the separation
 mu_x_mean = 125;
-mu_x_stdev = 2;
+mu_x_stdev = 0.5;
 sigma_x_mean = 10;
-sigma_x_stdev= 0.5;
+sigma_x_stdev= 0.3;
 
 % center and standard deviation of the peak in the axis normal to
 % the separation
@@ -189,4 +189,4 @@ data_struct.int_prof = int_profs;
 imwrite(imrotate(simulated_image, 90), 'skew_sim_data.tif')
 
 
-save('data_struct.mat', 'data_struct');
+save('sim_data_struct.mat', 'data_struct');
