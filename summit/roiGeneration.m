@@ -286,11 +286,11 @@ y_new_lower_right = new_lower_right(2) + sz(1);
 
 
 % Determine number of wells per row
-wells_per_row = round((x_new_upper_right - x_new_upper_left) / horzspacing);
+wells_per_row = round((x_new_upper_right - x_new_upper_left) / horzspacing) + 1;
 struct.wells_per_row = wells_per_row;
 
 % Determine number of rows
-rows = round((y_new_lower_right - y_new_upper_right) / vertspacing);
+rows = round((y_new_lower_right - y_new_upper_right) / vertspacing) + 1;
 struct.rows = rows;
 
 % Determine total number of wells
@@ -327,10 +327,10 @@ for i = 1:rows
         mat(: ,: ,z) = b(col_start:(col_end - 1), row_start:(row_end - 1));
         
         % plot the ROI grid overlay on the image
-        plot(x', y', 'Color', 'w', 'LineStyle','-');
-        plot(x', y', 'Color', 'k', 'LineStyle',':');
-        plot(x2', y2', 'Color', 'w', 'LineStyle','-');
-        plot(x2', y2', 'Color', 'k', 'LineStyle',':');
+        plot(x', y', 'Color', 'm', 'LineStyle','-');
+        plot(x', y', 'Color', 'c', 'LineStyle',':');
+        plot(x2', y2', 'Color', 'm', 'LineStyle','-');
+        plot(x2', y2', 'Color', 'c', 'LineStyle',':');
     end
 end
 
