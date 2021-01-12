@@ -348,6 +348,7 @@ struct.wells_per_row = wells_per_row;
 
 % Determine number of rows
 rows = round((array_bounds(4,2)-array_bounds(3,2)) / vertspacing)+1;
+
 struct.rows = rows;
 
 % Determine total number of wells
