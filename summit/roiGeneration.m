@@ -9,9 +9,11 @@ function [struct] = roiGeneration(filename,horzspacing,vertspacing,struct)
 % Struct [structure]: A data structure containing objects:
 %   struct.rois: 3D matrix with each ROI contained in a different z.
 %   struct.angle: The angle of rotation to straighten the image (number, in degrees).
-%   struct.rotate: The angle of rotation required to display the image with
+%   struct.coarse_rotate: The angle of rotation required to display the image with
 %   separations running vertically instead of horizontally (number, in
 %   degrees).
+%   struct.fine_angle_rotate: The angle of rotation to straighten the array
+%   of vertical separations.
 %   struct.array_bounds: User selected boundaries of the array as a 3x2
 %   matrix (rows contain upper left, upper right, and lower left
 %   coordinates respectively; first column contains x-coordinates; second column contains y-coordinates). 
@@ -34,7 +36,15 @@ function [struct] = roiGeneration(filename,horzspacing,vertspacing,struct)
 % 0.2 (5.15.16): Updated to apply same transform for ROI generation if user
 %                inputs a struct with the fields "angle" and "rotate".
 % 0.3 (5.20.16): Added "rows" and "wells per row" fields to structure.
-
+% 0.4 (10.29.20): Revised array bound selection and array straightening
+%                approach so user first clicks on wells within a row to
+%                straighten the image before selecting
+%                left/right/top/bottom-most wells of array.
+% 0.5 (12.6.20): User can input 'struct' as an argument to apply
+%                previously generated ROIs to the array (struct must 
+%                contain 'coarse_angle_rotate', 'fine_angle_rotate' and 
+%                'array_bounds').  
+%                
 %% Check input arguments
 switch nargin
     % If the user only provides the image, horizontal and vertical spacing
@@ -51,28 +61,28 @@ switch nargin
             
             end
             
-        % retrieve previously determined angle for transformation of image
-        angle = struct.angle;
+        % retrieve previously determined coarse angle for transformation of image
+        rotate = struct.coarse_rotate;
+        
+        %retrieve previously determined fine angle for image straightening
+        fine_angle_rotate = struct.fine_angle_rotate;
         
         % retrieve previously determined array boundaries
         array_bounds = struct.array_bounds;
         
         % extract the individual x an y coordinates of the array boundaries
-        x_upperleftwell = array_bounds(1, 1);
-        y_upperleftwell = array_bounds(1, 2);
-        
-        x_upperrightwell = array_bounds(2, 1);
-        y_upperrightwell = array_bounds(2, 2);
-        
-        x_lowerrightwell = array_bounds(3, 1);
-        y_lowerrightwell = array_bounds(3, 2);
+        x_leftwell = array_bounds(1, 1);
+        x_rightwell = array_bounds(2, 1);
+
+        y_topwell = array_bounds(3, 2);
+        y_bottomwell = array_bounds(4, 2);
         
     
     otherwise
         
         error('Invalid number of input arguments');
             
-        return
+    return
         
 end
 %% 
@@ -84,12 +94,12 @@ struct.name = str;
 
 % Load the image file in MATLAB
 img = imread(filename);
-    
+
     if transform == 0
         
         % Display more contrasted image in window
         contrasted_img = histeq(img);
-        imshow(contrasted_img);
+        imshow(contrasted_img); 
 
         % Display a message to the user asking them to look at the array
         title('Take a look at the array and determine if the wells are oriented left of the bands or right of the bands. Then press any key');
@@ -113,19 +123,29 @@ img = imread(filename);
                 rotate = 90;
         end
         
-        % Store the course rotation angle to orient the array vertically to
+        % Store the coarse rotation angle to orient the array vertically to
         % the struct
         
-        struct.rotate = rotate;
+        struct.coarse_rotate = rotate;
     else
          
-        rotate = struct.rotate;
+        rotate = struct.coarse_rotate;
     end
   
-  % Display the course-rotated image
+  % Display the coarse-rotated image
   imgrotated = imrotate(img, rotate);
   contrasted_img_r = histeq(imgrotated);
   imshow(contrasted_img_r);
+ 
+  
+  if transform == 1
+      fine_angle_rotate = struct.fine_angle_rotate;
+      % Display the rotated image so the array is aligned
+        b = imrotate(imgrotated, fine_angle_rotate, 'nearest','crop');
+        b_contrasted = histeq(b);
+        imshow(b_contrasted);
+        hold on
+  end
   
   %If struct was not an input argument (and there is no previous
   %angle/array boundary values to draw from), the user will now manually
@@ -133,10 +153,70 @@ img = imread(filename);
   
 while transform == 0
   test = 1;
-    
+  straighten_test = 1;
   while test == 1
-        % Prompt user to select the upper right well of the array. 
-        title('Please zoom in on the the middle of the upper left well and press any key.');
+       % Prompt user to zoom in on any row. 
+   while straighten_test == 1
+       title('Please zoom in on a row (about 10 wells in view) and press any key.');
+        % use mouse button to zoom in or out
+        zoom on;   
+        pause()
+        zoom off;
+        % preallocate straighten matrix
+        straighten_mat = zeros(2, 2);
+        % prompt user to click on the two wells
+        title('To straighten your image, please click on the center of a well and then the center of another well about 10 wells to the right in the same row.');
+        [x_click,y_click] = ginput(2);
+        straighten_mat(1,:) = [x_click(1), y_click(1)];
+        straighten_mat(2,:) = [x_click(2), y_click(2)];
+        hold on 
+
+        plot(x_click(1),y_click(1),'r+','MarkerSize',10);
+        plot(x_click(2),y_click(2),'r+','MarkerSize',10);
+         % Construct a questdlg to ask the user if they are happy with their
+         % well selection
+        choice = questdlg('Are you happy with your well selections?', ...
+        'Well selections to straighten image', ...
+        'Yes','No','Yes');
+        
+        % Handle response
+        switch choice
+            
+            case 'Yes';
+                disp([choice 'Great, let''s keep going then!'])
+                straighten_test = 0;
+           
+            case 'No';
+                disp([choice 'That''s okay, try again!'])
+                straighten_test = 1;
+        end
+   end
+        % store the coordinates of the vector that extends from the
+        % left well straight to the right well (if each well had the same y
+        % coordinate)
+    rotate_vector1 = [straighten_mat(2,1),straighten_mat(1,2)] - [straighten_mat(1,1),straighten_mat(1,2)];
+
+    % store the coordinates of the vector that connects the two wells directly 
+    rotate_vector2 = [straighten_mat(2,1),straighten_mat(2,2)] - [straighten_mat(1,1),straighten_mat(1,2)];
+
+    % Find angle between the two vectors [angle in degrees]
+    cosfine_angle_rotate = dot(rotate_vector1, rotate_vector2) / (norm(rotate_vector1) * norm(rotate_vector2));
+    fine_angle_rotate = acosd(cosfine_angle_rotate);
+    
+        if (straighten_mat(2,2)<straighten_mat(1,2))
+            fine_angle_rotate=-fine_angle_rotate;
+        end
+        
+        struct.fine_angle_rotate = fine_angle_rotate;
+        % Display the rotated image so the array is aligned
+        b = imrotate(imgrotated, fine_angle_rotate, 'nearest','crop');
+        b_contrasted = histeq(b);
+        imshow(b_contrasted);
+        hold on
+        
+         
+        % Prompt user to select the left-most well of the array.
+        title('Please zoom in on the the left-most well of the array (spaced at least one column away from the edge of the image)and press any key.');
         
         % use mouse button to zoom in or out
         zoom on;   
@@ -144,23 +224,24 @@ while transform == 0
         zoom off;
         
         % preallocate array bounds matrix
-        array_bounds = zeros(3, 2);
+        array_bounds = zeros(4, 2);
         
-        % prompt user to click on the middle of the upper left well
-        title('Please click on the middle of the upper left well.');
+        % prompt user to click on the center of the upper left well
+        title('Please click on the center of the left-most well of the array.');
         
         [x_click,y_click] = ginput(1);
-        
+        plot(x_click(1),y_click(1),'r+','MarkerSize',10);
+        hold on
         % store the coordinates the user selected for the upper left well
-        x_upperleftwell = x_click;
-        y_upperleftwell = y_click;
+        x_leftwell = x_click;
+        y_leftwell = y_click;
         zoom out;
         
-        array_bounds(1,:) = [x_upperleftwell, y_upperleftwell];
+        array_bounds(1,:) = [x_leftwell, y_leftwell];
         
         % Change message displayed in figure window to indicate the user should zoom in on the
-        % upper right well
-        title('Please zoom in on the middle of the upper right well and press any key.')
+        % right-most well
+        title('Please zoom in on the the right-most well of the array (spaced at least one column away from the edge of the image) and press any key.')
         
         % use mouse button to zoom in or out
         zoom on;   
@@ -168,40 +249,67 @@ while transform == 0
     
         zoom off;
         
-        % prompt user to click on the middle of the upper right well
-        title('Please click on the middle of the upper right well.');
+        % prompt user to click on the center of the right-most well
+        title('Please click on the center of the right-most well of the array.');
         
         [x_click,y_click] = ginput(1);
+        plot(x_click(1),y_click(1),'r+','MarkerSize',10);
         
         % store the coordinates of the user-selected upper right well
-        x_upperrightwell = x_click;
-        y_upperrightwell = y_click;
+        x_rightwell = x_click;
+        y_rightwell = y_click;
         zoom out;
         
-        array_bounds(2,:) = [x_upperrightwell, y_upperrightwell];
+        array_bounds(2,:) = [x_rightwell, y_rightwell];
         
         % Change display in imaged window to indicate user should zoom in
-        % on the middle of the lower right well
-        title('Please zoom in on the middle of the lower right well and press any key.')
+        % on the top-most well
+        title('Please zoom in on the the top-most row of the array and press any key.')
         
         % use mouse button to zoom in or out
         zoom on;   
         pause()
         zoom off;
     
-        % prompt user to click on the middle of the lower right well
-        title('Please click on the middle of the lower right well.');
+        % prompt user to click on the center of the top-most well
+        title('Please click on the center of a well in top row of the array.');
         
         [x_click,y_click] = ginput(1);
+        plot(x_click(1),y_click(1),'r+','MarkerSize',10);
+        % store the user-selected coordinates of the lower right well
+        x_topwell = x_click;
+        y_topwell = y_click;
+        
+        zoom out
+        array_bounds(3,:) = [x_topwell, y_topwell];
+        
+        
+        
+        % Change display in imaged window to indicate user should zoom in
+        % on the bottom-most well
+        title('Please zoom in on the the bottom-most row of the array (spaced at least one column from the edge of the image) and press any key.')
+        
+        % use mouse button to zoom in or out
+        zoom on;   
+        pause()
+        zoom off;
+    
+        % prompt user to click on the center of the bottom-most well
+        title('Please click on the center of a well in the bottom-most row of the array.');
+        
+        [x_click,y_click] = ginput(1);
+        plot(x_click(1),y_click(1),'r+','MarkerSize',10);
         
         % store the user-selected coordinates of the lower right well
-        x_lowerrightwell = x_click;
-        y_lowerrightwell = y_click;
+        x_bottomwell = x_click;
+        y_bottomwell = y_click;
         
-        array_bounds(3,:) = [x_lowerrightwell, y_lowerrightwell];
+        zoom out
+        array_bounds(4,:) = [x_bottomwell, y_bottomwell];
         
         % store all of the coordinates of the array bounds to the struct
         struct.array_bounds = array_bounds;
+        
         
         % Construct a questdlg to ask the user if they are happy with their
          % well selection
@@ -214,7 +322,6 @@ while transform == 0
             
             case 'Yes';
                 disp([choice 'Great, let''s keep going then!'])
-                test = 0;
             
             case 'No';
                 disp([choice 'That''s okay, try again!'])
@@ -222,7 +329,7 @@ while transform == 0
         end
      
     % check whether the user selected array boundaries are correct    
-    if (x_upperrightwell<x_upperleftwell || y_upperrightwell>y_lowerrightwell)        
+    if (x_rightwell<x_leftwell || y_bottomwell<y_topwell)        
         test = 1;
         
         title('Oh no! We detected you selected the wells in the wrong order. Please try again. Press any key to continue')
@@ -231,66 +338,17 @@ while transform == 0
         test = 0;
     end
   end
-  
-    % store the coordinates of the direction vector that extends from the upper left well to the right most point of the array
-    dir_vector1 = [x_upperrightwell,y_upperleftwell] - [x_upperleftwell,y_upperleftwell];
-
-    % store the coordinates of the direction vector that extends from the upper left well to the upper right well 
-    dir_vector2 = [x_upperrightwell,y_upperrightwell] - [x_upperleftwell,y_upperleftwell];
-
-    % Find angle between the two direction vectors [angle in degrees]
-    cosangle = dot(dir_vector1, dir_vector2) / (norm(dir_vector1) * norm(dir_vector2));
-    angle = acosd(cosangle);
-    
-        if (y_upperrightwell<y_upperleftwell)
-            angle=-angle;
-        end
-    
-    % store the angle used to straigten the image in the struct
-    struct.angle=angle;  
     transform=1;
 end
 
 
-% Display the rotated image so the array is aligned
-b = imrotate(imgrotated, angle, 'nearest','crop');
-b_contrasted = histeq(b);
-imshow(b_contrasted);
-hold on
-sz = size(b) / 2;
-
-% Generate a rotation matrix to multiply by the array boundary coordinates
-% to attain the new array boundaries in the rotated image
-rotation_matrix = [cosd(-angle), -sind(-angle);sind(-angle), cosd(-angle)];
-
-% Multiply the rotation matrix by the upper left well coordinates
-new_upper_left = rotation_matrix * [(x_upperleftwell - (sz(2)));(y_upperleftwell - sz(1))];
-
-% Multiply the rotation matrix by the upper right well coordinates
-new_upper_right = rotation_matrix * [(x_upperrightwell - sz(2));(y_upperrightwell - sz(1))];
-
-%Multiply the rotation matrix by the lower right well coordinates
-new_lower_right = rotation_matrix * [(x_lowerrightwell - sz(2));(y_lowerrightwell - sz(1))];
-
-% store the new upper left x and y coordinates
-x_new_upper_left = new_upper_left(1) + sz(2);
-y_new_upper_left = new_upper_left(2) + sz(1);
-
-% store the new upper right x and y coordinates
-x_new_upper_right = new_upper_right(1) + sz(2);
-y_new_upper_right = new_upper_right(2) + sz(1);
-
-% store the new lower right x and y coordinates
-x_new_lower_right = new_lower_right(1) + sz(2);
-y_new_lower_right = new_lower_right(2) + sz(1);
-
-
 % Determine number of wells per row
-wells_per_row = round((x_new_upper_right - x_new_upper_left) / horzspacing) + 1;
+wells_per_row = round((array_bounds(2,1) - array_bounds(1,1)) / horzspacing)+1;
 struct.wells_per_row = wells_per_row;
 
 % Determine number of rows
-rows = round((y_new_lower_right - y_new_upper_right) / vertspacing) + 1;
+rows = round((array_bounds(4,2)-array_bounds(3,2)) / vertspacing)+1;
+
 struct.rows = rows;
 
 % Determine total number of wells
@@ -308,29 +366,29 @@ for i = 1:rows
         z = (wells_per_row) * (i-1)+j;
         
         % set row start and end boundaries 
-        row_start = (round(x_new_upper_left) - horzspacing/2) + ((j-1)*horzspacing);
+        row_start = (round(array_bounds(1,1)) - horzspacing/2) + ((j-1)*horzspacing);
         row_end = row_start + horzspacing;
         
         % set column start and end boundaries
-        col_start = (round(y_new_upper_left) + ((i-1)*vertspacing));
+        col_start = (round(array_bounds(3,2)) + ((i-1)*vertspacing));
         col_end = col_start + vertspacing;
         
         %generate lines that span the x and y coordinates of all the ROIs
         %to overlay over image to show the ROIs
         x = row_start:1:(row_end - 1);
         y = repmat(col_start, 1, length(x));
-        y2 = col_start:1:(col_end - 1);
-        x2 = repmat((row_end-1), 1, length(y2));
+        y2 = col_start:1:(col_end);
+        x2 = repmat((row_end), 1, length(y2));
         
         % fill the matrix with the image pixels within the current ROI
         % boundaries
         mat(: ,: ,z) = b(col_start:(col_end - 1), row_start:(row_end - 1));
         
         % plot the ROI grid overlay on the image
-        plot(x', y', 'Color', 'm', 'LineStyle','-');
-        plot(x', y', 'Color', 'c', 'LineStyle',':');
-        plot(x2', y2', 'Color', 'm', 'LineStyle','-');
-        plot(x2', y2', 'Color', 'c', 'LineStyle',':');
+        plot(x', y', 'Color', 'r', 'LineStyle','-');
+        plot(x', y', 'Color', 'r', 'LineStyle',':');
+        plot(x2', y2', 'Color', 'r', 'LineStyle','-');
+        plot(x2', y2', 'Color', 'r', 'LineStyle',':');
     end
 end
 
